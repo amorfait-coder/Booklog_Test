@@ -1,4 +1,4 @@
-const storageKey = "booklog.posts.v2";
+const storageKey = "booklog.posts.v3";
 
 const fields = {
   title: document.querySelector("#title"),
@@ -10,6 +10,7 @@ const fields = {
   rating: document.querySelector("#rating"),
   quote: document.querySelector("#quote"),
   bookText: document.querySelector("#bookText"),
+  summary: document.querySelector("#summary"),
   comment: document.querySelector("#comment"),
   body: document.querySelector("#body"),
 };
@@ -26,6 +27,7 @@ const samplePosts = [
     rating: 5,
     quote: "역사를 견디는 마음의 온도를 오래 생각하게 한다.",
     bookText: "눈과 바람, 기억과 증언이 겹쳐지는 장면을 기록해 두고 싶었다.",
+    summary: "기억과 증언이 겹치는 장면을 통해 개인의 경험과 공동체의 상처를 함께 바라보게 한다.",
     comment: "개인의 기억이 공동체의 상처와 맞닿을 때 독자는 사건을 정보가 아니라 감각으로 받아들이게 된다.",
     body: "문장은 조용하지만 장면마다 남는 무게가 크다. 읽고 난 뒤에도 질문이 쉽게 닫히지 않는 책이다.",
     createdAt: new Date("2026-04-22T09:00:00").toISOString(),
@@ -41,6 +43,7 @@ const samplePosts = [
     rating: 4,
     quote: "분류하려는 마음과 세계의 혼란 사이에서 읽힌다.",
     bookText: "질서라고 믿었던 것이 사실은 관찰자의 욕망일 수 있다는 대목이 오래 남았다.",
+    summary: "세계의 질서를 분류하려는 태도가 때로는 관찰자의 욕망일 수 있음을 보여준다.",
     comment: "과학 지식이 삶의 태도에 관한 질문으로 확장되는 방식이 좋았다.",
     body: "과학 에세이처럼 출발하지만 개인의 회복과 세계를 이해하는 방식까지 넓어진다.",
     createdAt: new Date("2026-04-18T15:30:00").toISOString(),
@@ -53,7 +56,9 @@ const cancelEditBtn = document.querySelector("#cancelEditBtn");
 const newPostBtn = document.querySelector("#newPostBtn");
 const fetchMetaBtn = document.querySelector("#fetchMetaBtn");
 const scanImage = document.querySelector("#scanImage");
+const ocrLanguage = document.querySelector("#ocrLanguage");
 const ocrStatus = document.querySelector("#ocrStatus");
+const summarizeBtn = document.querySelector("#summarizeBtn");
 const coverPreview = document.querySelector("#coverPreview");
 const searchInput = document.querySelector("#searchInput");
 const categoryFilter = document.querySelector("#categoryFilter");
@@ -87,6 +92,7 @@ form.addEventListener("submit", (event) => {
 cancelEditBtn.addEventListener("click", resetForm);
 fetchMetaBtn.addEventListener("click", fetchBookMetadata);
 scanImage.addEventListener("change", scanBookText);
+summarizeBtn.addEventListener("click", summarizeCurrentBookText);
 fields.coverUrl.addEventListener("input", updateCoverPreview);
 
 newPostBtn.addEventListener("click", () => {
@@ -111,6 +117,7 @@ function readForm() {
     rating: Number(data.get("rating")),
     quote: data.get("quote").trim(),
     bookText: data.get("bookText").trim(),
+    summary: data.get("summary").trim(),
     comment: data.get("comment").trim(),
     body: data.get("body").trim(),
   };
@@ -118,7 +125,7 @@ function readForm() {
 
 function loadPosts() {
   const current = localStorage.getItem(storageKey);
-  const legacy = localStorage.getItem("booklog.posts.v1");
+  const legacy = localStorage.getItem("booklog.posts.v2") || localStorage.getItem("booklog.posts.v1");
   const stored = current || legacy;
   if (!stored) return samplePosts;
 
@@ -137,6 +144,7 @@ function normalizePost(post) {
     publishYear: "",
     coverUrl: "",
     bookText: "",
+    summary: "",
     comment: "",
     ...post,
   };
@@ -167,6 +175,7 @@ function render() {
     node.querySelector(".book-info").textContent = getBookInfo(post);
     node.querySelector(".quote").textContent = post.quote || "남긴 한 줄 감상이 없습니다.";
     node.querySelector(".book-text").textContent = post.bookText || "기록된 책 내용이 없습니다.";
+    node.querySelector(".summary").textContent = post.summary || "생성된 요약이 없습니다.";
     node.querySelector(".comment").textContent = post.comment || "기록된 코멘트가 없습니다.";
     node.querySelector(".body").textContent = post.body;
     node.querySelector(".date").textContent = formatDate(post.createdAt);
@@ -200,6 +209,7 @@ function getVisiblePosts() {
         post.publishYear,
         post.quote,
         post.bookText,
+        post.summary,
         post.comment,
         post.body,
       ]
@@ -308,10 +318,12 @@ async function scanBookText(event) {
   }
 
   scanImage.disabled = true;
-  showStatus("사진에서 글자를 읽는 중입니다.");
+  summarizeBtn.disabled = true;
+  const selectedLanguage = ocrLanguage.value;
+  showStatus(`${getLanguageLabel(selectedLanguage)} 텍스트를 읽는 중입니다.`);
 
   try {
-    const result = await window.Tesseract.recognize(file, "kor+eng", {
+    const result = await window.Tesseract.recognize(file, selectedLanguage, {
       logger(message) {
         if (message.status === "recognizing text") {
           showStatus(`스캔 중 ${Math.round(message.progress * 100)}%`);
@@ -320,13 +332,29 @@ async function scanBookText(event) {
     });
     const scannedText = result.data.text.trim();
     fields.bookText.value = [fields.bookText.value.trim(), scannedText].filter(Boolean).join("\n\n");
-    showStatus(scannedText ? "스캔한 내용을 책 내용에 추가했습니다." : "사진에서 읽을 수 있는 글자를 찾지 못했습니다.");
+    if (scannedText) {
+      fields.summary.value = summarizeText(fields.bookText.value, selectedLanguage);
+    }
+    showStatus(scannedText ? "스캔한 내용을 추가하고 요약을 생성했습니다." : "사진에서 읽을 수 있는 글자를 찾지 못했습니다.");
   } catch {
     showStatus("사진 스캔 중 문제가 발생했습니다.");
   } finally {
     scanImage.disabled = false;
+    summarizeBtn.disabled = false;
     scanImage.value = "";
   }
+}
+
+function summarizeCurrentBookText() {
+  const source = fields.bookText.value.trim();
+  if (!source) {
+    showStatus("요약할 책 내용을 먼저 입력하거나 사진으로 스캔하세요.");
+    fields.bookText.focus();
+    return;
+  }
+
+  fields.summary.value = summarizeText(source, ocrLanguage.value);
+  showStatus("책 내용을 바탕으로 요약을 생성했습니다.");
 }
 
 function startEdit(id) {
@@ -380,6 +408,97 @@ function getBookInfo(post) {
   return [post.author, post.publisher, post.publishYear].filter(Boolean).join(" · ") || "도서 정보 없음";
 }
 
+function summarizeText(text, languageCode) {
+  const cleanedText = normalizeOcrText(text);
+  const sentences = splitSentences(cleanedText);
+  if (sentences.length <= 2) return cleanedText;
+
+  const tokensBySentence = sentences.map((sentence) => tokenizeForSummary(sentence, languageCode));
+  const frequencies = new Map();
+
+  tokensBySentence.flat().forEach((token) => {
+    frequencies.set(token, (frequencies.get(token) || 0) + 1);
+  });
+
+  const ranked = sentences
+    .map((sentence, index) => {
+      const tokens = tokensBySentence[index];
+      const rawScore = tokens.reduce((score, token) => score + (frequencies.get(token) || 0), 0);
+      const positionBonus = index === 0 ? 1.18 : 1;
+      return {
+        index,
+        sentence,
+        score: tokens.length ? (rawScore / Math.sqrt(tokens.length)) * positionBonus : 0,
+      };
+    })
+    .sort((a, b) => b.score - a.score);
+
+  const summaryLength = Math.min(3, Math.max(2, Math.ceil(sentences.length * 0.28)));
+  return ranked
+    .slice(0, summaryLength)
+    .sort((a, b) => a.index - b.index)
+    .map((item) => item.sentence)
+    .join(" ");
+}
+
+function normalizeOcrText(text) {
+  return text
+    .replace(/[ \t]+/g, " ")
+    .replace(/\n{3,}/g, "\n\n")
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .join(" ");
+}
+
+function splitSentences(text) {
+  const sentences = text.match(/[^.!?。！？\n]+[.!?。！？]?/g) || [];
+  const cleanedSentences = sentences.map((sentence) => sentence.trim()).filter((sentence) => sentence.length > 8);
+  if (cleanedSentences.length > 1 || text.length < 220) return cleanedSentences;
+
+  const words = text.split(/\s+/).filter(Boolean);
+  if (words.length > 35) {
+    const chunks = [];
+    for (let index = 0; index < words.length; index += 24) {
+      chunks.push(words.slice(index, index + 24).join(" "));
+    }
+    return chunks;
+  }
+
+  const chunks = [];
+  for (let index = 0; index < text.length; index += 90) {
+    chunks.push(text.slice(index, index + 90).trim());
+  }
+  return chunks.filter(Boolean);
+}
+
+function tokenizeForSummary(sentence, languageCode) {
+  const normalized = sentence.toLowerCase();
+  if (languageCode.includes("jpn") || languageCode.includes("chi")) {
+    return normalized
+      .replace(/[^\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}a-z0-9]/gu, "")
+      .split("")
+      .filter((token) => token.trim());
+  }
+
+  return normalized
+    .replace(/[^\p{Script=Hangul}a-z0-9\s]/gu, " ")
+    .split(/\s+/)
+    .map((token) => token.trim())
+    .filter((token) => token.length > 1 && !summaryStopwords.has(token));
+}
+
+function getLanguageLabel(languageCode) {
+  const labels = {
+    "kor+eng": "한국어와 영어",
+    kor: "한국어",
+    eng: "영어",
+    jpn: "일본어",
+    chi_sim: "중국어 간체",
+  };
+  return labels[languageCode] || "선택한 언어";
+}
+
 function cleanText(value = "") {
   return value.replace(/\s+/g, " ").trim();
 }
@@ -396,6 +515,32 @@ function getYes24CoverUrl(url, goodsId) {
   if (url) return url.replace(/^http:/, "https:").replace(/&amp;/g, "&");
   return goodsId ? `https://image.yes24.com/goods/${goodsId}/XL` : "";
 }
+
+const summaryStopwords = new Set([
+  "그리고",
+  "그러나",
+  "하지만",
+  "있는",
+  "없는",
+  "것은",
+  "것이",
+  "것을",
+  "때문",
+  "the",
+  "and",
+  "for",
+  "that",
+  "this",
+  "with",
+  "from",
+  "into",
+  "about",
+  "have",
+  "has",
+  "were",
+  "was",
+  "are",
+]);
 
 function formatDate(value) {
   return new Intl.DateTimeFormat("ko-KR", {
