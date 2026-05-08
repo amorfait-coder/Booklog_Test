@@ -91,12 +91,31 @@
           <section class="input-section" aria-label="책 내용 입력">
             <div class="section-head">
               <h3>책 내용</h3>
-              <label class="file-control">
-                사진 스캔
-                <input id="scanImage" type="file" accept="image/*" />
-              </label>
+              <div class="scan-controls">
+                <label class="compact-label">
+                  언어
+                  <select id="ocrLanguage">
+                    <option value="kor+eng">한국어 + 영어</option>
+                    <option value="kor">한국어</option>
+                    <option value="eng">영어</option>
+                    <option value="jpn">일본어</option>
+                    <option value="chi_sim">중국어 간체</option>
+                  </select>
+                </label>
+                <label class="file-control">
+                  사진 스캔
+                  <input id="scanImage" type="file" accept="image/*" />
+                </label>
+              </div>
             </div>
             <textarea id="bookText" name="bookText" rows="7" maxlength="4000" placeholder="인용하거나 기록하고 싶은 책 내용을 직접 입력하세요."></textarea>
+            <div class="summary-box">
+              <div class="section-head">
+                <h3>요약</h3>
+                <button id="summarizeBtn" class="ghost-btn compact-btn" type="button">요약 생성</button>
+              </div>
+              <textarea id="summary" name="summary" rows="4" maxlength="1000" placeholder="책 내용을 바탕으로 자동 요약됩니다."></textarea>
+            </div>
             <p id="ocrStatus" class="status" aria-live="polite"></p>
           </section>
 
@@ -168,6 +187,10 @@
             <section class="post-section book-text-section">
               <h4>책 내용</h4>
               <p class="book-text"></p>
+            </section>
+            <section class="post-section summary-section">
+              <h4>요약</h4>
+              <p class="summary"></p>
             </section>
             <section class="post-section">
               <h4>내 코멘트</h4>
