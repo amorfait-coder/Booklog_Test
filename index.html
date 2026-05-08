@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Booklog</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">Reading Journal</p>
+        <h1>Booklog</h1>
+      </div>
+      <button id="newPostBtn" class="primary-btn" type="button">새 포스팅</button>
+    </header>
+
+    <main class="app-shell">
+      <section class="composer" aria-label="책 포스팅 작성">
+        <form id="postForm" autocomplete="off">
+          <div class="form-head">
+            <h2>책 기록하기</h2>
+            <span id="formMode">새 글</span>
+          </div>
+
+          <div class="book-meta-layout">
+            <div id="coverPreview" class="cover-preview" aria-label="책 표지 미리보기">표지</div>
+            <div class="meta-fields">
+              <label>
+                책 제목
+                <input id="title" name="title" type="text" maxlength="100" required />
+              </label>
+
+              <label>
+                저자
+                <input id="author" name="author" type="text" maxlength="80" />
+              </label>
+
+              <button id="fetchMetaBtn" class="ghost-btn" type="button">YES24 정보 찾기</button>
+            </div>
+          </div>
+
+          <div class="form-grid">
+            <label>
+              출판사
+              <input id="publisher" name="publisher" type="text" maxlength="80" />
+            </label>
+
+            <label>
+              출판연도
+              <input id="publishYear" name="publishYear" type="number" min="1000" max="2100" />
+            </label>
+          </div>
+
+          <label>
+            표지 이미지 URL
+            <input id="coverUrl" name="coverUrl" type="url" placeholder="자동 검색하거나 직접 붙여넣기" />
+          </label>
+
+          <div class="form-grid">
+            <label>
+              분야
+              <select id="category" name="category">
+                <option>소설</option>
+                <option>에세이</option>
+                <option>인문</option>
+                <option>사회</option>
+                <option>과학</option>
+                <option>경제</option>
+                <option>자기계발</option>
+              </select>
+            </label>
+
+            <label>
+              평점
+              <select id="rating" name="rating">
+                <option value="5">5</option>
+                <option value="4">4</option>
+                <option value="3">3</option>
+                <option value="2">2</option>
+                <option value="1">1</option>
+              </select>
+            </label>
+          </div>
+
+          <label>
+            한 줄 감상
+            <input id="quote" name="quote" type="text" maxlength="120" placeholder="이 책을 한 문장으로 남긴다면" />
+          </label>
+
+          <section class="input-section" aria-label="책 내용 입력">
+            <div class="section-head">
+              <h3>책 내용</h3>
+              <label class="file-control">
+                사진 스캔
+                <input id="scanImage" type="file" accept="image/*" />
+              </label>
+            </div>
+            <textarea id="bookText" name="bookText" rows="7" maxlength="4000" placeholder="인용하거나 기록하고 싶은 책 내용을 직접 입력하세요."></textarea>
+            <p id="ocrStatus" class="status" aria-live="polite"></p>
+          </section>
+
+          <label>
+            내 코멘트
+            <textarea id="comment" name="comment" rows="6" maxlength="2000" required placeholder="위 책 내용을 바탕으로 떠오른 생각을 적어보세요."></textarea>
+          </label>
+
+          <label>
+            포스팅 내용
+            <textarea id="body" name="body" rows="7" maxlength="1800" required></textarea>
+          </label>
+
+          <div class="form-actions">
+            <button id="cancelEditBtn" class="ghost-btn" type="button" hidden>취소</button>
+            <button class="primary-btn" type="submit">저장</button>
+          </div>
+        </form>
+      </section>
+
+      <section class="content" aria-label="책 포스팅 목록">
+        <div class="toolbar">
+          <label class="search">
+            검색
+            <input id="searchInput" type="search" placeholder="제목, 저자, 출판사, 내용" />
+          </label>
+
+          <label>
+            분야
+            <select id="categoryFilter">
+              <option value="all">전체</option>
+              <option>소설</option>
+              <option>에세이</option>
+              <option>인문</option>
+              <option>사회</option>
+              <option>과학</option>
+              <option>경제</option>
+              <option>자기계발</option>
+            </select>
+          </label>
+
+          <label>
+            정렬
+            <select id="sortSelect">
+              <option value="recent">최신순</option>
+              <option value="rating">평점순</option>
+              <option value="title">제목순</option>
+            </select>
+          </label>
+        </div>
+
+        <div id="stats" class="stats" aria-live="polite"></div>
+        <div id="postList" class="post-list"></div>
+      </section>
+    </main>
+
+    <template id="postTemplate">
+      <article class="post-card">
+        <div class="card-main">
+          <div class="post-cover"></div>
+          <div class="post-content">
+            <div class="post-meta">
+              <span class="category"></span>
+              <span class="rating"></span>
+            </div>
+            <h3></h3>
+            <p class="book-info"></p>
+            <blockquote class="quote"></blockquote>
+            <section class="post-section book-text-section">
+              <h4>책 내용</h4>
+              <p class="book-text"></p>
+            </section>
+            <section class="post-section">
+              <h4>내 코멘트</h4>
+              <p class="comment"></p>
+            </section>
+            <section class="post-section">
+              <h4>포스팅</h4>
+              <p class="body"></p>
+            </section>
+          </div>
+        </div>
+        <div class="card-actions">
+          <span class="date"></span>
+          <div>
+            <button class="text-btn edit" type="button">수정</button>
+            <button class="text-btn danger delete" type="button">삭제</button>
+          </div>
+        </div>
+      </article>
+    </template>
+
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+    <script src="app.js"></script>
+  </body>
+</html>
