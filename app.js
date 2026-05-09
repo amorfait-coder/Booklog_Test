@@ -237,7 +237,7 @@ async function fetchBookMetadata() {
   fetchMetaBtn.textContent = "찾는 중...";
 
   try {
-    const book = await fetchYes24Book(title, author);
+    const book = await fetchNaverBook(title, author);
     if (!book) {
       showStatus("검색된 도서 정보가 없습니다.");
       return;
@@ -249,62 +249,56 @@ async function fetchBookMetadata() {
     fields.publishYear.value = book.publishYear || fields.publishYear.value;
     fields.coverUrl.value = book.coverUrl || fields.coverUrl.value;
     updateCoverPreview();
-    showStatus("YES24 도서 정보를 채웠습니다.");
+    showStatus("네이버 책 정보를 채웠습니다.");
   } catch (error) {
-    showStatus(error.message || "도서 정보 검색 중 문제가 발생했습니다.");
+    showStatus(error.message || "네이버 책 정보 검색 중 문제가 발생했습니다.");
   } finally {
     fetchMetaBtn.disabled = false;
-    fetchMetaBtn.textContent = "YES24 정보 찾기";
+    fetchMetaBtn.textContent = "네이버 책 정보 찾기";
   }
 }
 
-async function fetchYes24Book(title, author) {
+async function fetchNaverBook(title, author) {
+  if (window.location.protocol === "file:") {
+    throw new Error("네이버 책 검색은 로컬 서버에서 실행해야 합니다. PowerShell에서 node server.js를 실행한 뒤 http://localhost:4173 으로 접속하세요.");
+  }
+
   const keyword = [title, author].filter(Boolean).join(" ");
-  const yes24Url = `https://www.yes24.com/Product/Search?domain=BOOK&query=${encodeURIComponent(keyword)}`;
-  const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(yes24Url)}`;
-  const response = await fetch(proxyUrl);
+  const params = new URLSearchParams({ query: keyword });
+  if (author) params.set("author", author);
+  const response = await fetch(`/api/naver-books?${params}`);
+  const payload = await response.json().catch(() => null);
 
   if (!response.ok) {
-    throw new Error("YES24 정보를 가져오지 못했습니다.");
+    throw new Error(payload?.message || payload?.errorMessage || "네이버 책 정보를 가져오지 못했습니다.");
   }
 
-  const html = await response.text();
-  const documentFromHtml = new DOMParser().parseFromString(html, "text/html");
-  return parseYes24SearchResult(documentFromHtml, author);
+  return parseNaverSearchResult(payload, author);
 }
 
-function parseYes24SearchResult(documentFromHtml, author) {
-  const items = Array.from(documentFromHtml.querySelectorAll("li, .goods_info"))
-    .map(parseYes24Item)
+function parseNaverSearchResult(payload, author) {
+  const items = (payload.items || [])
+    .map(parseNaverItem)
     .filter(Boolean);
 
   if (!items.length) return null;
 
-  const normalizedAuthor = author.replace(/\s/g, "");
+  const normalizedAuthor = normalizeComparableText(author);
   if (!normalizedAuthor) return items[0];
 
-  return items.find((item) => item.authors.join("").replace(/\s/g, "").includes(normalizedAuthor)) || items[0];
+  return items.find((item) => item.authors.some((name) => normalizeComparableText(name).includes(normalizedAuthor))) || items[0];
 }
 
-function parseYes24Item(item) {
-  const titleLink = item.querySelector(".goods_name a, a[href*='/Product/Goods/'], a[href*='/product/goods/']");
-  const title = cleanText(titleLink?.textContent);
+function parseNaverItem(item) {
+  const title = cleanText(stripHtml(item.title));
   if (!title) return null;
-
-  const href = titleLink.getAttribute("href") || "";
-  const goodsId = href.match(/goods\/(\d+)/i)?.[1];
-  const authorText = cleanText(item.querySelector(".goods_auth")?.textContent);
-  const publisher = cleanText(item.querySelector(".goods_pub")?.textContent);
-  const dateText = cleanText(item.querySelector(".goods_date")?.textContent);
-  const image = item.querySelector("img[src*='image.yes24.com'], img[data-original*='image.yes24.com']");
-  const imageUrl = image?.getAttribute("data-original") || image?.getAttribute("src") || "";
 
   return {
     title,
-    authors: parseAuthors(authorText),
-    publisher,
-    publishYear: dateText.match(/\d{4}/)?.[0] || "",
-    coverUrl: getYes24CoverUrl(imageUrl, goodsId),
+    authors: parseNaverAuthors(item.author),
+    publisher: cleanText(stripHtml(item.publisher)),
+    publishYear: String(item.pubdate || "").match(/\d{4}/)?.[0] || "",
+    coverUrl: item.image || "",
   };
 }
 
@@ -499,21 +493,23 @@ function getLanguageLabel(languageCode) {
   return labels[languageCode] || "선택한 언어";
 }
 
+function stripHtml(value = "") {
+  return value.replace(/<[^>]*>/g, "");
+}
+
 function cleanText(value = "") {
-  return value.replace(/\s+/g, " ").trim();
+  return stripHtml(value).replace(/&amp;/g, "&").replace(/\s+/g, " ").trim();
 }
 
-function parseAuthors(value) {
-  return value
-    .replace(/\s*저\s*$/g, "")
-    .split(/,|·|\//)
-    .map((item) => cleanText(item.replace(/\s*저\s*$/g, "")))
+function normalizeComparableText(value = "") {
+  return cleanText(value).replace(/\s/g, "").toLowerCase();
+}
+
+function parseNaverAuthors(value = "") {
+  return cleanText(value)
+    .split(/\||,|·|\//)
+    .map((item) => cleanText(item))
     .filter(Boolean);
-}
-
-function getYes24CoverUrl(url, goodsId) {
-  if (url) return url.replace(/^http:/, "https:").replace(/&amp;/g, "&");
-  return goodsId ? `https://image.yes24.com/goods/${goodsId}/XL` : "";
 }
 
 const summaryStopwords = new Set([

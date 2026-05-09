@@ -6,16 +6,24 @@ Booklog is a browser-based reading journal app for writing posts about books.
 
 - Create, edit, delete, search, filter, and sort book posts
 - Store posts in browser `localStorage`
-- Record book excerpts and personal comments
+- Record book excerpts, summaries, and personal comments
 - Scan book text from photos with Tesseract.js
-- Fill book cover and metadata from YES24 search results through a CORS proxy
+- Fill book cover and metadata from Naver Book Search API
 
-## Run locally
+## Run Locally
 
-Open `index.html` in a browser.
+Naver Book Search requires API credentials, so run the local Node server instead of opening `index.html` directly.
 
-## Web deployment
+```powershell
+$env:NAVER_CLIENT_ID="your_naver_client_id"
+$env:NAVER_CLIENT_SECRET="your_naver_client_secret"
+node server.js
+```
+
+Then open `http://localhost:4173`.
+
+## GitHub Pages
 
 This repository includes a GitHub Pages workflow at `.github/workflows/deploy-pages.yml`.
 
-After GitHub Pages is enabled with the source set to GitHub Actions, pushes to `main` deploy the app as a web app.
+GitHub Pages can host the static app, but it cannot run `server.js` or keep Naver API secrets. The Naver book search button needs a Node host or another backend that exposes `/api/naver-books`.
